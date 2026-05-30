@@ -1,5 +1,6 @@
 const db = require('../../db/pool')
 const { remoteStop } = require('../commands')
+const { emit } = require('../events')
 
 module.exports = async function meterValues(chargerId, payload, respond) {
   const sampled = payload.meterValue?.[0]?.sampledValue || []
@@ -25,12 +26,32 @@ module.exports = async function meterValues(chargerId, payload, respond) {
 
   const session = rows[0]
   const frwSoFar = kwh * parseFloat(session.price_per_kwh)
+
   await db.query(`UPDATE sessions SET kwh_consumed=? WHERE id=?`, [kwh, session.id])
 
+  emit('MeterValues', {
+    chargerId,
+    sessionId: session.id,
+    transactionId: payload.transactionId,
+    connector: session.connector,
+    kwh,
+    frwSoFar,
+    budget: session.budget_frw,
+    summary: `Session #${session.id} — ${kwh.toFixed(3)} kWh — ${Math.round(frwSoFar).toLocaleString()} RWF`,
+  })
+
   if (session.budget_frw && frwSoFar >= parseFloat(session.budget_frw)) {
-    try {
-      await remoteStop(chargerId, payload.transactionId)
-    } catch (_) {}
+    emit('BudgetStop', {
+      chargerId,
+      sessionId: session.id,
+      transactionId: payload.transactionId,
+      kwh,
+      frwSoFar,
+      budget: session.budget_frw,
+      summary: `Session #${session.id} budget reached — ${Math.round(frwSoFar).toLocaleString()} RWF ≥ ${Math.round(session.budget_frw).toLocaleString()} RWF budget`,
+    })
+    try { await remoteStop(chargerId, payload.transactionId) } catch (_) {}
   }
+
   respond({})
 }

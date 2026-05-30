@@ -2,7 +2,7 @@
 
 **EV Charging Station Intelligent Management System**
 Simple Charge · Kigali, Rwanda
-Version 1.0 · May 2026
+Version 1.1 · May 2026
 
 ---
 
@@ -11,33 +11,46 @@ Version 1.0 · May 2026
 1. [System Overview](#1-system-overview)
 2. [Roles and Permissions](#2-roles-and-permissions)
 3. [Getting Started — Logging In](#3-getting-started--logging-in)
-4. [Dashboard — Live Charger Status](#4-dashboard--live-charger-status)
-5. [Starting a Charging Session](#5-starting-a-charging-session)
-6. [Stopping a Charging Session](#6-stopping-a-charging-session)
-7. [Sessions — History and Filtering](#7-sessions--history-and-filtering)
-8. [Invoices — Generating and Downloading PDFs](#8-invoices--generating-and-downloading-pdfs)
-9. [Operators — User Management](#9-operators--user-management)
-10. [Allocations — kWh Quota Management](#10-allocations--kwh-quota-management)
-11. [Reports](#11-reports)
-12. [Signing Out](#12-signing-out)
-13. [Charger Status Reference](#13-charger-status-reference)
-14. [Troubleshooting](#14-troubleshooting)
-15. [Quick Reference Card](#15-quick-reference-card)
+4. [First-Time Setup Guide](#4-first-time-setup-guide)
+5. [Dashboard — Live Charger Status](#5-dashboard--live-charger-status)
+6. [Starting a Charging Session](#6-starting-a-charging-session)
+7. [Stopping a Charging Session](#7-stopping-a-charging-session)
+8. [Sessions — History and Filtering](#8-sessions--history-and-filtering)
+9. [Invoices — Generating and Downloading PDFs](#9-invoices--generating-and-downloading-pdfs)
+10. [Operators — User Management](#10-operators--user-management)
+11. [Allocations — kWh Quota Management](#11-allocations--kwh-quota-management)
+12. [Reports](#12-reports)
+13. [Settings — Connecting Charger Machines](#13-settings--connecting-charger-machines)
+14. [Signing Out](#14-signing-out)
+15. [Charger Status Reference](#15-charger-status-reference)
+16. [Troubleshooting](#16-troubleshooting)
+17. [Quick Reference Card](#17-quick-reference-card)
 
 ---
 
 ## 1. System Overview
 
-EVCSIMS is the management software for two DC fast-chargers installed at Simple Charge, Kigali. It connects to the chargers in real time using the OCPP 1.6J protocol and lets operators start and stop charging sessions, track energy consumption, manage agent quotas, and produce invoices — all from a web browser.
+EVCSIMS is the management software for DC fast-chargers at Simple Charge, Kigali. It connects to chargers in real time using the OCPP 1.6J protocol over WebSocket, and lets operators start and stop charging sessions, track energy consumption, manage agent quotas, and produce invoices — all from a web browser.
 
-**Hardware managed:**
+**How the system is structured:**
 
-| Unit | Serial Number | Location |
-|------|--------------|----------|
-| Charger 1 — Bay A (`KIGALI-DC160-001`) | 20251218007 | Simple Charge, Kigali |
-| Charger 2 — Bay B (`KIGALI-DC160-002`) | 20251218008 | Simple Charge, Kigali |
+```
+Physical Charger  →  (OCPP WebSocket :8887)  →  This Server  →  Dashboard
+   Hardware                                      Backend               Browser
+```
 
-Each charger has two connector guns (Gun A and Gun B), giving four charging points in total.
+- The **backend server** runs on a computer on-site and listens for charger connections on port 8887.
+- Each **physical charger machine** is configured with the server's IP address and connects automatically on power-up.
+- The **dashboard** (this browser app) communicates with the backend over a REST API on port 3001.
+
+**Default hardware managed:**
+
+| Unit | ID | Guns | Serial Number |
+|------|----|------|--------------|
+| Charger 1 — Bay A | `KIGALI-DC160-001` | A + B | 20251218007 |
+| Charger 2 — Bay B | `KIGALI-DC160-002` | A + B | 20251218008 |
+
+You can register additional charger machines at any time through the Settings page.
 
 **Access the system at:** `http://localhost:5173` (development) or your configured domain in production.
 
@@ -49,16 +62,19 @@ Every user account is assigned one of three roles. The role controls which pages
 
 | Feature | Admin | Accountant | Agent |
 |---------|:-----:|:----------:|:-----:|
-| Live dashboard | Yes | Yes | Yes |
-| Start / stop sessions | Yes | — | Yes (own quota only) |
-| View all sessions | Yes | Yes | Own sessions only |
-| Generate invoices | Yes | Yes | Own sessions only |
-| Download PDF invoices | Yes | Yes | Own sessions only |
-| View all reports | Yes | Yes | — |
-| Manage operators | Yes | — | — |
-| Manage kWh allocations | Yes | — | — |
+| Live dashboard | ✓ | ✓ | ✓ |
+| Setup guide | ✓ | ✓ | ✓ |
+| Help & manual | ✓ | ✓ | ✓ |
+| Start / stop sessions | ✓ | — | ✓ (own quota) |
+| View all sessions | ✓ | ✓ | Own only |
+| Generate invoices | ✓ | ✓ | Own only |
+| Download PDF invoices | ✓ | ✓ | Own only |
+| View all reports | ✓ | ✓ | — |
+| Manage operators | ✓ | — | — |
+| Manage kWh allocations | ✓ | — | — |
+| Settings (charger config) | ✓ | — | — |
 
-> **Admin** is the only role that can create new users and assign kWh quotas. There should always be at least one active admin account.
+> **Admin** is the only role that can register charger machines, create users, and assign kWh quotas. Always keep at least one active admin account.
 
 ---
 
@@ -68,7 +84,7 @@ Every user account is assigned one of three roles. The role controls which pages
 2. Enter your **email address** and **password**.
 3. Click **Sign In**.
 
-If your credentials are correct you are taken directly to the Dashboard. The token is stored in your browser and remains valid for 8 hours. After 8 hours you will be redirected to the login page automatically.
+You are taken directly to the Dashboard. The login token is stored in your browser and remains valid for **8 hours**. After that you are automatically redirected to the login page.
 
 **Default admin account (first-time setup only):**
 
@@ -76,96 +92,107 @@ If your credentials are correct you are taken directly to the Dashboard. The tok
 |-------|----------|
 | `admin@simplecharge.rw` | `Admin@1234` |
 
-> Change the default password immediately after first login. Ask your system administrator to update it via the Operators page.
+> ⚠️ **Change the default password immediately** after first login. Go to **Operators**, find the Admin account, click **Edit**, and set a strong new password. The default credential is publicly known.
 
 ---
 
-## 4. Dashboard — Live Charger Status
+## 4. First-Time Setup Guide
 
-The Dashboard is the main operational view. It refreshes automatically every 15 seconds.
+When you log in for the first time the Dashboard shows a **Getting Started** panel that walks you through six steps. Each step is detected automatically — as you complete tasks, the step turns green and the next step becomes active.
 
-### Layout
+| Step | What to do | Detected by |
+|------|-----------|-------------|
+| 1 | System is running | Always complete |
+| 2 | Configure charger OCPP URL | At least one charger has a server IP saved in Settings |
+| 3 | Create an agent account | At least one active user with role = agent |
+| 4 | Allocate kWh quota to agent | At least one allocation record exists |
+| 5 | Connect the charger hardware | At least one charger shows Online |
+| 6 | Start your first session | At least one session has been created |
 
-```
-┌─────────────────────────────────────────────┐
-│  Summary metrics row (sessions / kWh / FRW) │
-├────────────────────┬────────────────────────┤
-│  Charger 1 — Bay A │  Charger 2 — Bay B     │
-│  ┌─────────────┐   │  ┌─────────────┐       │
-│  │ Gun A  ●    │   │  │ Gun A  ●    │       │
-│  │ Gun B  ●    │   │  │ Gun B  ●    │       │
-│  └─────────────┘   │  └─────────────┘       │
-└────────────────────┴────────────────────────┘
-```
+Each step expands to show numbered instructions and a direct navigation button (e.g., "Go to Settings →"). The guide re-checks every 15 seconds.
+
+Once all six steps are complete, the panel transforms into a **Quick Reference** tile grid showing daily operations tips. You can collapse or dismiss the guide at any time using the button in the top-right of the panel.
+
+---
+
+## 5. Dashboard — Live Charger Status
+
+The Dashboard is the primary operational view. It auto-refreshes every 15 seconds.
 
 ### Summary Metrics
 
-Four figures shown at the top of the Dashboard:
+Four figures at the top of the page:
 
-- **Sessions This Month** — total completed sessions in the current calendar month.
-- **Total Energy Sold** — kWh delivered this month.
-- **Total Revenue** — RWF collected this month.
-- **Online Chargers** — number of charger units currently registered.
+| Metric | Description |
+|--------|-------------|
+| **Sessions This Month** | Total completed charging sessions in the current calendar month |
+| **Total Energy Sold** | kWh delivered to vehicles this month |
+| **Total Revenue** | RWF collected this month |
+| **Online Chargers** | `X / Y` — chargers currently connected out of total registered |
 
 ### Charger Card
 
-Each charger card shows:
+One card is shown per physical charger machine. Each card displays:
 
-- **Charger name and ID** (e.g., `Charger 1 — Bay A · KIGALI-DC160-001`)
-- **Last heartbeat timestamp** — the last time the charger communicated with the server. If this is more than 2 minutes ago the charger may have lost connectivity.
-- **Gun A and Gun B rows**, each with:
-  - A coloured status indicator dot (see [Section 13](#13-charger-status-reference))
-  - The current status label
-  - Live kWh, FRW, and elapsed time when a session is active
-  - **Start** or **Stop** button depending on the current state
+- **Name, ID, and location** of the charger machine
+- **Online / Offline badge** — green dot if connected, red "Offline" badge if not
+- **Last heartbeat** — shown as relative time ("Just now", "2m ago", "12m ago"). Turns **red** when more than 3 minutes have passed — this indicates a connectivity problem.
+- **Offline warning banner** — appears when the charger has lost its OCPP connection. Sessions cannot be started until it reconnects.
+- **Gun A and Gun B rows**, each showing:
+  - Coloured status dot (see Section 15)
+  - Current status label
+  - Live kWh, RWF, elapsed time, and operator name when a session is active
+  - **Start** button (only when gun is `Available` and charger is Online)
+  - **Stop** button (only when gun is `Charging`)
+  - Reason label when neither button is shown (e.g., "Charger offline", "Gun unavailable")
 
 ---
 
-## 5. Starting a Charging Session
+## 6. Starting a Charging Session
 
-Sessions can only be started from the Dashboard. A session requires an agent with sufficient kWh quota.
+Sessions are started from the Dashboard. The **Start** button only appears when the gun status is **Available** and the charger is **Online**.
 
 **Steps:**
 
-1. On the Dashboard, locate the correct charger and gun.
-2. Confirm the gun status shows **Available**.
-3. Click the **Start** button next to the gun.
-4. A modal dialog opens:
+1. On the Dashboard, find a charger card with an **Online** indicator.
+2. Locate a gun showing **Available** (green dot).
+3. Click **Start**.
+4. Fill in the modal:
 
    | Field | Description |
    |-------|-------------|
-   | **Operator / Agent** | Select the agent whose quota will be charged |
-   | **Budget (RWF)** | Optional. The session will auto-stop when this amount is reached. Leave blank for no limit. |
+   | **Operator / Agent** | Select the agent whose kWh quota will be used |
+   | **Budget (RWF)** | Optional spending limit. Session stops automatically when reached. |
 
 5. Click **Start Charging**.
-6. The system sends a `RemoteStartTransaction` command to the charger. Within a few seconds the gun status changes to **Preparing**, then **Charging**.
-7. The live counter (kWh · FRW · elapsed time) appears on the card and updates every 30 seconds.
+6. The gun status changes: **Available → Preparing → Charging** (amber, pulsing).
+7. A live counter appears showing **kWh · RWF · elapsed time**, updating every 30 seconds.
 
-**What can go wrong:**
+**Possible errors:**
 
-| Message | Cause | Action |
-|---------|-------|--------|
-| `Insufficient kWh quota` | The selected agent has zero remaining kWh | Add an allocation for the agent first (see Section 10) |
-| `Charger rejected start command` | Charger returned a non-Accepted status | Check the charger's physical state; try again |
-| `Charger not connected` | No OCPP connection to that charger | Check charger power and 4G signal; check Last Heartbeat |
-
----
-
-## 6. Stopping a Charging Session
-
-1. On the Dashboard, find the gun showing status **Charging**.
-2. Click the **Stop** button.
-3. The system sends a `RemoteStopTransaction` command to the charger.
-4. The charger finalises the meter reading, sends a `StopTransaction` message, and the session is marked **completed**.
-5. The gun status returns to **Available**.
-
-The final kWh consumed and total cost in RWF are stored in the session record and are ready for invoicing.
-
-> **Automatic stop:** If a budget was set when starting the session, the system monitors meter values in real time and triggers a remote stop automatically when the FRW threshold is reached.
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `Insufficient kWh quota` | Agent has zero kWh remaining | Add an allocation — Section 11 |
+| `Charger rejected start command` | Charger hardware declined | Check physical state of the charger |
+| `Charger not connected` | No OCPP connection | Go to Settings and verify OCPP URL |
 
 ---
 
-## 7. Sessions — History and Filtering
+## 7. Stopping a Charging Session
+
+1. On the Dashboard, find the gun showing **Charging** (amber, pulsing).
+2. Click **Stop**.
+3. The system sends `RemoteStopTransaction` to the charger.
+4. The charger finalises the meter reading and sends `StopTransaction` back.
+5. The session is marked **completed** and the gun returns to **Available**.
+
+The final kWh and RWF values are saved and the session is ready for invoicing.
+
+> **Automatic stop:** If a budget (RWF) was set at start, the system checks meter values every 5 seconds and triggers a remote stop when the budget is reached.
+
+---
+
+## 8. Sessions — History and Filtering
 
 The **Sessions** page shows a paginated table of all charging sessions.
 
@@ -178,33 +205,31 @@ The **Sessions** page shows a paginated table of all charging sessions.
 | Gun | A or B |
 | Operator | Agent who ran the session |
 | Start | Session start time |
-| End | Session end time (blank if still active) |
+| End | End time (blank if still active) |
 | kWh | Energy delivered |
 | FRW | Cost charged |
-| Status | pending / active / completed / faulted |
+| Status | `pending` / `active` / `completed` / `faulted` |
 
-### Filtering
+### Filters
 
-Use the filter row above the table to narrow results:
+- **From / To** — filter by session start date
+- **Charger** — type a charger ID (e.g. `KIGALI-DC160-001`)
+- **Status** — All / Active / Completed / Pending / Faulted
 
-- **From / To** — filter by session start date (date picker)
-- **Charger** — type a charger ID, e.g. `KIGALI-DC160-001`
-- **Status** — drop-down: All / Active / Completed / Pending / Faulted
-
-Filters apply immediately. The page resets to page 1 when any filter changes.
+Pagination: 50 rows per page. Arrows appear at the bottom when there are multiple pages.
 
 ### Access rules
 
 - **Agents** see only their own sessions.
 - **Admins and Accountants** see all sessions.
 
-### Printing an Invoice
+### Generating an Invoice
 
-On any **completed** session row, click the **Invoice** button. A dialog asks for the customer name (default: "Walk-in Customer"). Click **Generate & Download PDF** to create the invoice PDF and open it in a new browser tab.
+On any **completed** row, click **Invoice**. Enter the customer name (default: "Walk-in Customer") and click **Generate & Download PDF**.
 
 ---
 
-## 8. Invoices — Generating and Downloading PDFs
+## 9. Invoices — Generating and Downloading PDFs
 
 The **Invoices** page lists every invoice that has been generated.
 
@@ -212,7 +237,7 @@ The **Invoices** page lists every invoice that has been generated.
 
 | Column | Description |
 |--------|-------------|
-| Invoice # | Zero-padded invoice number, e.g. `#000003` |
+| Invoice # | Zero-padded number, e.g. `#000003` |
 | Session | Linked session ID |
 | Customer | Customer name on the invoice |
 | Operator | Agent who ran the session |
@@ -220,221 +245,246 @@ The **Invoices** page lists every invoice that has been generated.
 | kWh | Energy billed |
 | Total (RWF) | Amount billed |
 
-Click the **PDF** button on any row to download or open the invoice PDF.
+Click **PDF** on any row to open or download the invoice.
 
-### Invoice content
+### What is on each PDF invoice
 
-Each PDF invoice includes:
-
-- Simple Charge header and location
+- Simple Charge header and Kigali location
 - Invoice number and date
-- Session details (charger, gun, start/end time)
+- Charger ID, gun letter, start and end time
 - Operator name and customer name
-- Energy consumed (kWh)
-- Price per kWh (RWF)
+- Energy consumed (kWh), price per kWh (RWF)
 - **Total amount in RWF**
-- Thank-you footer
 
-PDFs are stored on the server at `uploads/invoices/` and are always available for re-download.
+PDFs are stored on the server at `uploads/invoices/` and can always be re-downloaded.
 
-> **Note:** An invoice can only be generated for a session with status **completed**. Active or pending sessions do not appear as invoiceable.
+> Invoices can only be generated for sessions with status **completed**.
 
 ---
 
-## 9. Operators — User Management
+## 10. Operators — User Management
 
 _Admin only._
 
 The **Operators** page lists all user accounts and lets you create or deactivate them.
 
-### Viewing operators
+### User card
 
-Each row shows:
-- Avatar initial, full name, and email
-- Role badge (colour-coded: blue = admin, green = agent, amber = accountant)
-- **Inactive** badge if the account is deactivated
+Each user card shows: avatar initial · full name · email · role badge · Inactive badge (if deactivated).
+
+Role badge colours: **blue** = admin · **green** = agent · **amber** = accountant.
 
 ### Adding an operator
 
 1. Click **+ Add Operator**.
-2. Fill in the form:
-
-   | Field | Notes |
-   |-------|-------|
-   | Full Name | Display name shown throughout the system |
-   | Email | Must be unique. Used to log in. |
-   | Password | Minimum security: use a strong password |
-   | Role | `admin`, `agent`, or `accountant` |
-
-3. Click **Create Operator**.
-
-The new user can log in immediately.
+2. Fill in: Full Name, Email, Password, Role.
+3. Click **Create Operator** — the user can log in immediately.
 
 ### Activating / Deactivating
 
-Click the **Deactivate** button next to a user to prevent them from logging in. Their historical session data is preserved. Click **Activate** to restore access.
+Click **Deactivate** to prevent login (data is preserved). Click **Activate** to restore access.
 
-> You cannot deactivate your own account while logged in.
+> You cannot deactivate your own account.
 
 ---
 
-## 10. Allocations — kWh Quota Management
+## 11. Allocations — kWh Quota Management
 
 _Admin only._
 
-Each agent must have an **allocation** before they can start a charging session. An allocation records the amount of kWh purchased for that agent, the price per kWh, and tracks how much has been used.
+Each agent must have at least one **allocation** before they can start a session. An allocation records kWh purchased, price per kWh, and tracks usage.
 
-### Reading the allocation cards
-
-Each card shows:
+### Reading allocation cards
 
 ```
-Agent Name                          145.000 kWh left
-agent@example.com                   350 RWF/kWh
+Agent Name                         145.000 kWh left  350 RWF/kWh
+agent@simplecharge.rw
 
 [████████████░░░░░░░░░] 62%
 
 Assigned: 380.000 kWh   Used: 235.000 kWh   Value remaining: 50,750 RWF
 ```
 
-The progress bar colour changes to indicate urgency:
-- **Green** — less than 60 % used
-- **Amber** — 60–90 % used
-- **Red** — over 90 % used
+Progress bar colour: **green** < 60% · **amber** 60–90% · **red** > 90%.
 
 ### Adding an allocation (top-up)
 
 1. Click **+ Add Allocation**.
-2. Select the agent from the drop-down.
-3. Enter **kWh to Allocate** (e.g., `100`).
-4. Enter **Price per kWh (RWF)** (default: 350).
-5. Click **Allocate kWh**.
+2. Select the agent.
+3. Enter **kWh to Allocate** and **Price per kWh (RWF)** (default 350).
+4. Click **Allocate kWh**.
 
-The kWh is added to the agent's quota and a purchase entry is written to the inventory log.
+A purchase entry is written to the inventory log automatically.
 
-> **Important:** Each allocation is a separate record (like a top-up voucher). The "remaining" figure shown on the card is the sum across all allocations for that agent. The price per kWh is set per allocation, so you can change the rate on new top-ups without affecting existing balance.
+> Each allocation is a separate record. New top-ups can use a different price per kWh without changing the existing balance.
 
 ---
 
-## 11. Reports
+## 12. Reports
 
 _Admin and Accountant only._
 
-The Reports page has two tabs.
+Two tabs: **Monthly Sales** and **Inventory**.
 
 ### Monthly Sales
 
-Use the **Year**, **Month**, and optional **Agent** filters to generate a summary for any calendar month.
-
-**Summary cards** show:
-- Total sessions in the period
-- Total kWh sold
-- Total revenue in RWF
-
-**Daily bar chart** — energy (kWh) and session count by day of month. Useful for identifying peak usage days.
-
-**Per-agent breakdown table** — sessions, kWh, and revenue for each agent in the selected period, sorted by highest revenue.
+Select year, month, and optionally an agent to see:
+- Sessions count · total kWh · total revenue in RWF
+- **Daily bar chart** — kWh and session count per day of month
+- **Per-agent table** — sessions, kWh, revenue, sorted by revenue
 
 ### Inventory
 
-Provides a real-time stock summary across all purchase and sale transactions.
+Real-time stock summary:
 
-| Panel | Description |
-|-------|-------------|
-| **Total Purchased** | kWh bought in total, and total RWF paid |
-| **Total Sold** | kWh delivered to vehicles, and total RWF earned |
-| **Remaining Stock** | kWh not yet delivered, and its RWF value at average purchase price |
+| Row | Description |
+|-----|-------------|
+| Total Purchased | Sum of all allocation top-ups |
+| Total Sold | Sum of all completed sessions |
+| Remaining Stock | Purchased minus sold, valued at average purchase price |
 
-Below the summary, the **Recent Transactions** table shows the last 100 inventory entries — both purchases (allocation top-ups) and sales (completed sessions).
-
----
-
-## 12. Signing Out
-
-Click **Sign Out** at the bottom of the left sidebar. You are redirected to the login page and your session token is removed from the browser. Anyone sharing your device will need your password to log back in.
+The **Recent Transactions** table shows the last 100 inventory entries (both purchases and sales).
 
 ---
 
-## 13. Charger Status Reference
+## 13. Settings — Connecting Charger Machines
 
-| Status | Colour | Meaning |
-|--------|--------|---------|
-| **Available** | Green | Gun is ready and waiting for a session to start |
-| **Preparing** | Blue | Session has been initiated; charger is setting up |
-| **Charging** | Amber (pulsing) | Vehicle is actively charging |
-| **Finishing** | Purple | Session is ending; final meter reading being taken |
-| **Reserved** | Purple | Gun is reserved (not used in Phase 1) |
-| **Unavailable** | Gray | Gun is offline or disabled on the charger |
-| **Faulted** | Red | Charger has reported an error condition |
+_Admin only._
 
-If a charger shows **Unavailable** and was previously working, check:
-1. The **Last Heartbeat** timestamp on the card. More than 5 minutes without a heartbeat means connectivity is lost.
-2. The charger's 4G SIM card APN setting (must be set to the correct Rwanda operator APN).
-3. Power supply to the charger unit.
+The Settings page has two parts, labelled **A** and **B**.
+
+### Part A — This Server
+
+Shows the status of the OCPP server running on this machine:
+- **Status** — always "Running" if you can see this page
+- **Port** — 8887 (the port chargers connect to)
+- **Protocol** — `ws://` (plain) or `wss://` (TLS, for production)
+- **Chargers online now** — IDs of chargers with a live WebSocket connection
+- **This machine's IP address** — auto-detected from the network interface. Only physical WiFi/Ethernet IPs are shown as "Use this one". VPN tunnels are hidden by default with an explanation if expanded.
+
+This IP is what you type into each charger's touchscreen.
+
+### Part B — Your Physical Charger Machines
+
+Each card = one physical charger box on-site. One machine can have 1 or 2 guns. You can register as many machines as you own.
+
+**Stats bar** at the top: Total machines · Online now · Total charging points (guns).
+
+**To register a new charger machine:**
+1. Click **+ Register New Charger Machine**.
+2. Fill in: Machine ID (must match what the charger sends), Display Name, Location, number of guns.
+3. Under "How the charger connects": select connection type (LAN or 4G SIM), and pick the server IP from the dropdown (auto-populated from Part A).
+4. The **OCPP URL is generated live** as you type — copy it.
+5. Click **Register Charger**.
+
+**On the charger card:**
+- The **📱 Type this into the charger's touchscreen** section shows 6 numbered steps and the exact URL to paste into the charger's Back Office.
+- Once the charger is configured and reboots, the card shows a green **Online** badge within 30 seconds.
+- Click **Show technical details** to see port, protocol, APN, heartbeat interval, and last heartbeat timestamp.
+- Click **Edit config** to change any setting.
+- Click **Remove** to delete (blocked while the charger is online).
+
+### The "How it works" panel
+
+A collapsible panel at the top of Settings explains the full connection flow:
+
+```
+🔌 Physical Charger → (OCPP WebSocket) → 🖥 This Server → (REST API) → 📊 Dashboard
+```
+
+Part A = your side (the listener). Part B = the charger's side (must be told where to connect). The URL on each charger card is the bridge between them.
 
 ---
 
-## 14. Troubleshooting
+## 14. Signing Out
+
+Click **Sign Out** at the bottom of the left sidebar. Your session token is removed from the browser and you are redirected to the login page.
+
+---
+
+## 15. Charger Status Reference
+
+| Status | Colour | Start button? | Meaning |
+|--------|--------|:-------------:|---------|
+| **Available** | Green | ✓ Yes | Gun is ready — a session can be started |
+| **Preparing** | Blue | — | Start command sent; charger is setting up |
+| **Charging** | Amber (pulsing) | — | Vehicle is actively charging |
+| **Finishing** | Purple | — | Session ending; final meter reading in progress |
+| **Reserved** | Purple | — | Gun reserved (Phase 2 feature) |
+| **Unavailable** | Gray | — | Gun offline or disabled on the charger |
+| **Faulted** | Red | — | Charger has reported an error |
+
+**The Start button only appears when:**
+- The charger is **Online** (has an active OCPP connection), AND
+- The gun status is exactly **Available**
+
+For all other statuses a dimmed reason label replaces the button (e.g., "Charger offline", "Gun unavailable", "Gun faulted").
+
+**Heartbeat display:** shown as relative time — "Just now", "2m ago". Turns **red** when > 3 minutes old, indicating a connectivity problem. "Never" means the charger has not connected since the server started.
+
+---
+
+## 16. Troubleshooting
 
 ### Cannot log in
+- Check email spelling (not case-sensitive) and Caps Lock.
+- Ask an admin to confirm the account is **active** on the Operators page.
+- If locked out of all admin accounts, re-run `npm run db:seed` on the server to restore the default admin.
 
-- Verify the email address is correct (case-insensitive).
-- Check Caps Lock is not on.
-- Ask an admin to verify the account is **active** on the Operators page.
-- If you are locked out of all admin accounts, contact the system administrator to re-run `npm run db:seed` (this re-creates the default admin).
+### Dashboard shows a charger as Offline
+- The charger has lost its OCPP WebSocket connection.
+- Check: charger power supply · 4G SIM connectivity · the OCPP URL configured on the charger's touchscreen (go to Settings to verify).
+- The Last Heartbeat field turns red when > 3 minutes old.
 
-### Dashboard shows both chargers as Unavailable
-
-The chargers are not connected to the OCPP server. Possible causes:
-- The backend server is not running.
-- The charger's configured OCPP URL does not match the server address.
-- The charger's 4G SIM has no data connectivity.
+### Start button is not showing on a gun
+- The gun must be **Available** and the charger must be **Online**.
+- If the charger is Offline the entire card shows a red warning banner.
+- If the gun shows a different status (Unavailable, Faulted, etc.), a reason label appears instead of the button.
 
 ### "Insufficient kWh quota" when starting a session
+The selected agent has zero remaining kWh. An admin must add a new allocation on the Allocations page.
 
-The selected agent has no remaining kWh. An admin must add an allocation on the **Allocations** page before the session can proceed.
-
-### "Charger not connected" when starting or stopping
-
-The OCPP WebSocket connection to that charger is not active. The charger will appear as Unavailable on the dashboard. Check network and charger power.
+### "Charger not connected" error
+The OCPP WebSocket is not active for that charger. Verify the OCPP URL in Settings matches the server's current IP and port.
 
 ### Session stays "active" after stopping
-
-If `RemoteStopTransaction` was sent but the charger did not respond with `StopTransaction` (e.g., connectivity was lost), the session remains active in the database. Contact the system administrator to manually close it via a direct database update.
+If the charger lost connectivity before sending StopTransaction, the session stays open in the database. Contact the system administrator to close it manually.
 
 ### Invoice PDF does not open
-
-- Check your browser is not blocking pop-ups (the PDF opens in a new tab).
-- Confirm the session status is **completed** — invoices cannot be generated for active sessions.
+- Browser may be blocking pop-ups — allow pop-ups for this site.
+- Session must be **completed** before an invoice can be generated.
 - Verify the `uploads/invoices/` directory is writable on the server.
 
-### Live kWh counter is not updating
+### Live kWh counter is frozen
+The charger may not be sending `MeterValues` messages. Check the `MeterValueSampleInterval` setting in the charger's back office. The counter also only updates every 30 seconds even when working normally.
 
-The live counter polls `/api/sessions/live` every 30 seconds. If it is frozen:
-- The charger may not be sending `MeterValues` messages. This is a charger configuration setting (`MeterValueSampleInterval`).
-- Check the browser console for network errors.
+### The Online Chargers metric shows wrong count
+The metric shows `X / Y` — online / total registered. If it shows `0 / 2`, both chargers are offline. Check the OCPP server is running (`npm run dev` in the backend folder) and the chargers are configured with the correct OCPP URL.
 
 ---
 
-## 15. Quick Reference Card
+## 17. Quick Reference Card
 
-| Task | Where | Who |
-|------|-------|-----|
-| Log in | `/login` | All |
-| See live charger status | Dashboard | All |
-| Start a charging session | Dashboard → Gun row → **Start** | Admin, Agent |
-| Stop a charging session | Dashboard → Gun row → **Stop** | Admin, Agent |
-| View session history | Sessions page | All (agents: own only) |
-| Generate invoice PDF | Sessions page → **Invoice** | All (agents: own only) |
-| Download saved invoice | Invoices page → **PDF** | All (agents: own only) |
-| Add a new user | Operators page → **+ Add Operator** | Admin |
-| Deactivate a user | Operators page → **Deactivate** | Admin |
-| Top up agent's kWh quota | Allocations page → **+ Add Allocation** | Admin |
-| View monthly revenue | Reports → Monthly Sales | Admin, Accountant |
-| View inventory balance | Reports → Inventory | Admin, Accountant |
+| Task | Page | Who |
+|------|------|-----|
+| First-time setup | Dashboard → Getting Started panel | Admin |
+| **Change default password** | Operators → Admin → Edit | Admin |
+| Start a session | Dashboard → Gun row → **Start** | Admin, Agent |
+| Stop a session | Dashboard → Gun row → **Stop** | Admin, Agent |
+| View sessions | Sessions | All (agents: own only) |
+| Generate invoice | Sessions → **Invoice** | All (agents: own only) |
+| Download invoice | Invoices → **PDF** | All (agents: own only) |
+| Add operator | Operators → **+ Add Operator** | Admin |
+| Deactivate user | Operators → **Deactivate** | Admin |
+| Add kWh quota | Allocations → **+ Add Allocation** | Admin |
+| Monthly revenue report | Reports → Monthly Sales | Admin, Accountant |
+| Inventory stock | Reports → Inventory | Admin, Accountant |
+| Register new charger | Settings → **+ Register New Charger Machine** | Admin |
+| Get charger OCPP URL | Settings → charger card → copy URL | Admin |
+| Open this manual | Help (sidebar) | All |
 | Sign out | Sidebar → **Sign Out** | All |
 
 ---
 
-_EVCSIMS User Manual · Simple Charge, Kigali, Rwanda · May 2026_
+_EVCSIMS User Manual · Simple Charge, Kigali, Rwanda · May 2026 · v1.1_
 _For technical support contact your system administrator._

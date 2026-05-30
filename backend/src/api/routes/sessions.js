@@ -117,6 +117,61 @@ router.post('/start', async (req, res) => {
   }
 })
 
+// Force-close a stuck session when the charger is offline
+// Writes the DB directly — no OCPP connection required. Admin only.
+router.post('/:id/force-close', async (req, res) => {
+  const authorize = require('../middleware/authorize')
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin only' })
+  }
+
+  const [rows] = await db.query(
+    `SELECT s.*, u.name AS operator_name FROM sessions s
+     JOIN users u ON u.id = s.user_id
+     WHERE s.id=? AND s.status='active'`,
+    [req.params.id],
+  )
+  if (!rows.length) {
+    return res.status(404).json({ error: 'Active session not found' })
+  }
+
+  const session = rows[0]
+  const finalKwh = parseFloat(session.kwh_consumed) || 0
+  const totalFrw = finalKwh * parseFloat(session.price_per_kwh)
+
+  await db.query(
+    `UPDATE sessions SET status='completed', end_time=NOW(),
+     kwh_consumed=?, total_frw=? WHERE id=?`,
+    [finalKwh, totalFrw, session.id],
+  )
+
+  if (finalKwh > 0) {
+    await db.query(
+      `UPDATE kwh_allocations SET kwh_used = kwh_used + ? WHERE user_id=?`,
+      [finalKwh, session.user_id],
+    )
+    await db.query(
+      `INSERT INTO inventory_log (type, user_id, session_id, kwh, price_per_kwh, total_frw, note)
+       VALUES ('sale',?,?,?,?,?,'Force-closed by admin (charger offline)')`,
+      [session.user_id, session.id, finalKwh, session.price_per_kwh, totalFrw],
+    )
+  }
+
+  const { emit } = require('../../ocpp/events')
+  emit('StopTransaction', {
+    chargerId: session.charger_id,
+    sessionId: session.id,
+    connector: session.connector,
+    kwh: finalKwh,
+    totalFrw,
+    operatorName: session.operator_name,
+    reason: 'ForceClose',
+    summary: `Session #${session.id} force-closed by admin — ${finalKwh.toFixed(3)} kWh — ${Math.round(totalFrw).toLocaleString()} RWF`,
+  })
+
+  res.json({ ok: true, kwh: finalKwh, total_frw: totalFrw })
+})
+
 // Stop a session
 router.post('/stop', async (req, res) => {
   const { session_id, transaction_id, charger_id } = req.body

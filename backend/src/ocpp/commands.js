@@ -1,3 +1,5 @@
+const { emit } = require('./events')
+
 const connectedChargers = new Map()
 
 async function sendCommand(chargerId, action, payload) {
@@ -26,14 +28,31 @@ async function sendCommand(chargerId, action, payload) {
 }
 
 async function remoteStart(chargerId, connectorId, idTag) {
+  emit('RemoteStartTransaction', {
+    chargerId,
+    connectorId,
+    idTag,
+    summary: `→ RemoteStart sent — Gun ${connectorId === 1 ? 'A' : 'B'} — ${idTag}`,
+  })
   return sendCommand(chargerId, 'RemoteStartTransaction', { connectorId, idTag })
 }
 
 async function remoteStop(chargerId, transactionId) {
+  emit('RemoteStopTransaction', {
+    chargerId,
+    transactionId,
+    summary: `→ RemoteStop sent — Transaction #${transactionId}`,
+  })
   return sendCommand(chargerId, 'RemoteStopTransaction', { transactionId })
 }
 
 async function changeConfig(chargerId, key, value) {
+  emit('ChangeConfiguration', {
+    chargerId,
+    key,
+    value,
+    summary: `→ ChangeConfig: ${key} = ${value}`,
+  })
   return sendCommand(chargerId, 'ChangeConfiguration', { key, value })
 }
 

@@ -14,6 +14,7 @@ app.use('/api/allocations', require('./routes/allocations'))
 app.use('/api/invoices', require('./routes/invoices'))
 app.use('/api/reports', require('./routes/reports'))
 app.use('/api/settings', require('./routes/settings'))
+app.use('/api/monitor', require('./routes/monitor'))
 
 // Global error handler
 app.use((err, req, res, next) => {

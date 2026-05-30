@@ -7,15 +7,19 @@ const navItems = [
   { to: '/invoices', label: 'Invoices' },
   { to: '/operators', label: 'Operators', roles: ['admin'] },
   { to: '/allocations', label: 'Allocations', roles: ['admin'] },
+  { to: '/monitor', label: 'Monitor', roles: ['admin', 'accountant'] },
   { to: '/reports', label: 'Reports', roles: ['admin', 'accountant'] },
   { to: '/settings', label: 'Settings', roles: ['admin'] },
+  { to: '/simulator', label: 'Simulator', roles: ['admin'], divider: true },
+  { to: '/help', label: 'Help' },
 ]
 
 const s = {
-  shell: { display: 'flex', minHeight: '100vh', background: '#0f1623' },
+  shell: { display: 'flex', height: '100vh', overflow: 'hidden', background: '#0f1623' },
   sidebar: {
-    width: 220, background: '#111827', display: 'flex', flexDirection: 'column',
+    width: 220, flexShrink: 0, background: '#111827', display: 'flex', flexDirection: 'column',
     borderRight: '1px solid #1e293b', padding: '24px 0',
+    height: '100vh', overflowY: 'auto',
   },
   logo: {
     padding: '0 20px 24px', borderBottom: '1px solid #1e293b',
@@ -67,13 +71,17 @@ export default function Layout() {
         </div>
         <nav style={s.nav}>
           {visible.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              style={({ isActive }) => ({ ...s.link, ...(isActive ? s.activeLink : {}) })}
-            >
-              {item.label}
-            </NavLink>
+            <span key={item.to}>
+              {item.divider && (
+                <div style={{ height: 1, background: '#1e293b', margin: '8px 16px' }} />
+              )}
+              <NavLink
+                to={item.to}
+                style={({ isActive }) => ({ ...s.link, ...(isActive ? s.activeLink : {}) })}
+              >
+                {item.label}
+              </NavLink>
+            </span>
           ))}
         </nav>
         <div style={s.footer}>

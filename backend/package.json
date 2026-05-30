@@ -8,7 +8,8 @@
     "dev": "nodemon src/index.js",
     "sim": "node simulator.js",
     "db:init": "mysql -u root -p evcsims < src/db/schema.sql",
-    "db:seed": "node src/db/seed.js"
+    "db:seed": "node src/db/seed.js",
+    "test:ocpp": "node test-ocpp.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

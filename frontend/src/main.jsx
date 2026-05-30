@@ -10,6 +10,9 @@ import Allocations from './pages/Allocations'
 import Invoices from './pages/Invoices'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
+import Help from './pages/Help'
+import Monitor from './pages/Monitor'
+import Simulator from './pages/Simulator'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 
@@ -28,6 +31,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/invoices" element={<Invoices />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/help" element={<Help />} />
+            <Route path="/monitor" element={<Monitor />} />
+            <Route path="/simulator" element={<Simulator />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
